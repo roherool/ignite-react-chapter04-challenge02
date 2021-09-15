@@ -8,6 +8,36 @@ import { api } from '../services/api';
 import { Loading } from '../components/Loading';
 import { Error } from '../components/Error';
 
+interface ImagesQueryResponse {
+  after?: {
+    id: string;
+  };
+  data: {
+    title: string;
+    description: string;
+    url: string;
+    ts: number;
+    id: string;
+  }[];
+}
+
+interface Card {
+  title: string;
+  description: string;
+  url: string;
+  ts: number;
+  id: string;
+}
+
+async function getImages({ pageParam = null }): Promise<ImagesQueryResponse> {
+  const response = await api.get<ImagesQueryResponse>('/api/images', {
+    params: {
+      after: pageParam,
+    },
+  });
+  return response.data;
+}
+
 export default function Home(): JSX.Element {
   const {
     data,
@@ -16,20 +46,38 @@ export default function Home(): JSX.Element {
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
-  } = useInfiniteQuery(
-    'images',
-    // TODO AXIOS REQUEST WITH PARAM
-    ,
-    // TODO GET AND RETURN NEXT PAGE PARAM
-  );
+  } = useInfiniteQuery('images', getImages, {
+    getNextPageParam: lastPage => lastPage.after || null,
+  });
 
   const formattedData = useMemo(() => {
-    // TODO FORMAT AND FLAT DATA ARRAY
+    const cards: Card[] = [];
+    if (data) {
+      data.pages.forEach(page => {
+        page.data.forEach(item => {
+          console.log(item);
+          const card = {} as Card;
+          Object.assign(card, {
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            ts: item.ts,
+            url: item.url,
+          } as Card);
+          cards.push(card);
+        });
+      });
+    }
+    return cards;
   }, [data]);
 
-  // TODO RENDER LOADING SCREEN
+  if (isLoading) {
+    return <Loading />;
+  }
 
-  // TODO RENDER ERROR SCREEN
+  if (isError) {
+    return <Error />;
+  }
 
   return (
     <>
@@ -37,7 +85,15 @@ export default function Home(): JSX.Element {
 
       <Box maxW={1120} px={20} mx="auto" my={20}>
         <CardList cards={formattedData} />
-        {/* TODO RENDER LOAD MORE BUTTON IF DATA HAS NEXT PAGE */}
+        {hasNextPage && (
+          <Button
+            isLoading={isFetchingNextPage}
+            onClick={() => fetchNextPage()}
+            mt="12"
+          >
+            Carregar mais
+          </Button>
+        )}
       </Box>
     </>
   );

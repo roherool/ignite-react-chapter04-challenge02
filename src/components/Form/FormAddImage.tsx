@@ -11,6 +11,12 @@ interface FormAddImageProps {
   closeModal: () => void;
 }
 
+type AddNewImageFormData = {
+  image: string;
+  title: string;
+  description: string;
+};
+
 export function FormAddImage({ closeModal }: FormAddImageProps): JSX.Element {
   const [imageUrl, setImageUrl] = useState('');
   const [localImageUrl, setLocalImageUrl] = useState('');
@@ -18,43 +24,103 @@ export function FormAddImage({ closeModal }: FormAddImageProps): JSX.Element {
 
   const formValidations = {
     image: {
-      // TODO REQUIRED, LESS THAN 10 MB AND ACCEPTED FORMATS VALIDATIONS
+      required: 'Imagem obrigatória',
+      validate: {
+        lessThen10MB: (fileList: FileList) => {
+          if (fileList.length > 0) {
+            const maxSize = 1024 * 1024 * 10;
+            return (
+              fileList[0].size <= maxSize ||
+              'O arquivo deverá conter no máximo 10MB'
+            );
+          }
+          return true;
+        },
+        acceptedExtensions: (fileList: FileList) => {
+          if (fileList.length > 0) {
+            const regexExtensions = /image\//g;
+            return (
+              regexExtensions.test(fileList[0].type) ||
+              'Apenas arquivos de imagens são permitidos'
+            );
+          }
+          return true;
+        },
+      },
     },
     title: {
-      // TODO REQUIRED, MIN AND MAX LENGTH VALIDATIONS
+      required: 'Você deve informar um título',
+      minLength: {
+        value: 2,
+        message: 'O título deverá conter no mínimo 2 caracteres',
+      },
+      maxLength: {
+        value: 20,
+        message: 'O título deverá conter no máximo 20 caracteres',
+      },
     },
     description: {
-      // TODO REQUIRED, MAX LENGTH VALIDATIONS
+      required: 'Você deve informar uma descrição',
+      maxLength: {
+        value: 20,
+        message: 'A descrição deverá possuir no máximo 20 caracteres',
+      },
     },
   };
 
   const queryClient = useQueryClient();
   const mutation = useMutation(
-    // TODO MUTATION API POST REQUEST,
+    async (data: AddNewImageFormData) => {
+      const newImageData = {
+        ...data,
+        url: imageUrl,
+      };
+      const response = await api.post('/api/images', newImageData);
+      return response.data;
+    },
     {
-      // TODO ONSUCCESS MUTATION
+      onSuccess: () => {
+        queryClient.invalidateQueries('images');
+      },
     }
   );
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState,
-    setError,
-    trigger,
-  } = useForm();
+  const { register, handleSubmit, reset, formState, setError, trigger } =
+    useForm();
   const { errors } = formState;
 
-  const onSubmit = async (data: Record<string, unknown>): Promise<void> => {
+  const onSubmit = async (data: AddNewImageFormData): Promise<void> => {
     try {
-      // TODO SHOW ERROR TOAST IF IMAGE URL DOES NOT EXISTS
-      // TODO EXECUTE ASYNC MUTATION
-      // TODO SHOW SUCCESS TOAST
-    } catch {
-      // TODO SHOW ERROR TOAST IF SUBMIT FAILED
+      if (!imageUrl) {
+        toast({
+          title: 'Imagem carregando',
+          description: 'Você precisa aguardar o término do envio da imagem',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+      await mutation.mutateAsync(data);
+      toast({
+        title: 'Imagem cadastrada',
+        description: 'Sua nova imagem foi cadastrada com sucesso!',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao cadastrar a imagem',
+        description: `Ocorreu um erro ao cadastrar uma noava imagem: ${error.message}`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
     } finally {
-      // TODO CLEAN FORM, STATES AND CLOSE MODAL
+      reset();
+      setLocalImageUrl('');
+      setImageUrl('');
+      closeModal();
     }
   };
 
@@ -67,20 +133,20 @@ export function FormAddImage({ closeModal }: FormAddImageProps): JSX.Element {
           setLocalImageUrl={setLocalImageUrl}
           setError={setError}
           trigger={trigger}
-          // TODO SEND IMAGE ERRORS
-          // TODO REGISTER IMAGE INPUT WITH VALIDATIONS
+          error={errors.image}
+          {...register('image', formValidations.image)}
         />
 
         <TextInput
           placeholder="Título da imagem..."
-          // TODO SEND TITLE ERRORS
-          // TODO REGISTER TITLE INPUT WITH VALIDATIONS
+          error={errors.title}
+          {...register('title', formValidations.title)}
         />
 
         <TextInput
           placeholder="Descrição da imagem..."
-          // TODO SEND DESCRIPTION ERRORS
-          // TODO REGISTER DESCRIPTION INPUT WITH VALIDATIONS
+          error={errors.description}
+          {...register('description', formValidations.description)}
         />
       </Stack>
 
